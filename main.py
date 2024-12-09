@@ -110,12 +110,14 @@ def main(args):
             trg_cams = args.trg_cams.split(",")
             trg_cams = [int(x) for x in trg_cams]
             target_base = Wildtrack(data_path, cameras=trg_cams)
+            test_base0 = Wildtrack(data_path, cameras=trg_cams)
         else:
             target_base = Wildtrack(data_path)
+            test_base0 = Wildtrack(data_path)
+
         train_dataset_trg_ = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
         train_dataset_trg = ConcatDataset(train_dataset_trg_)
 
-        test_base0 = Wildtrack(data_path)
         test_set = framedataset(test_base0, train=False, transform=train_trans, grid_reduce=4, img_reduce=4)
         test_dataset_ = ConcatDataset(test_set)
 
@@ -129,12 +131,14 @@ def main(args):
             trg_cams = args.trg_cams.split(",")
             trg_cams = [int(x) for x in trg_cams]
             target_base = MultiviewX(data_path, cameras=trg_cams)
+            test_base0 = MultiviewX(data_path, cameras=trg_cams)
         else:
             target_base = MultiviewX(data_path)
+            test_base0 = MultiviewX(data_path)
+
         train_dataset_trg_ = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
         train_dataset_trg = ConcatDataset(train_dataset_trg_)
 
-        test_base0 = MultiviewX(data_path)
         test_set = framedataset(test_base0, train=False, transform=train_trans, grid_reduce=4, img_reduce=4)
         test_dataset_ = ConcatDataset(test_set)
         train_loader_target = torch.utils.data.DataLoader(train_dataset_trg, batch_size=args.batch_size, shuffle=True,
