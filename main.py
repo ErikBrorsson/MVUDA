@@ -1,10 +1,10 @@
+# code from https://github.com/hou-yz/MVDet/tree/master
+# modified by Erik Brorsson
 import os
 
 os.environ['OMP_NUM_THREADS'] = '1'
 import argparse
 import sys
-import shutil
-from distutils.dir_util import copy_tree
 import datetime
 import tqdm
 import numpy as np
@@ -12,11 +12,8 @@ import torch
 import torch.optim as optim
 import torchvision.transforms as T
 from multiview_detector.datasets import *
-from multiview_detector.loss.gaussian_mse import GaussianMSE, WeightedGaussianMSE
+from multiview_detector.loss.gaussian_mse import WeightedGaussianMSE
 from multiview_detector.models.persp_trans_detector import PerspTransDetector
-from multiview_detector.models.image_proj_variant import ImageProjVariant
-from multiview_detector.models.res_proj_variant import ResProjVariant
-from multiview_detector.models.no_joint_conv_variant import NoJointConvVariant
 from multiview_detector.utils.logger import Logger
 from multiview_detector.utils.draw_curve import draw_curve2
 from multiview_detector.utils.image_utils import img_color_denormalize
@@ -57,25 +54,35 @@ def main(args):
     else:
         framedataset_trg = frameDataset
 
-    if args.gmvd2multiviewx:
 
-        # set multiview x as target dataset and test dataset
-        data_path = args.data_path_trg
-        print("\nTraining datasets trg")
-        target_base = MultiviewX(data_path)
-        train_dataset_trg_ = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
-        train_dataset_trg = ConcatDataset(train_dataset_trg_)
-
-        print("\nTest datasets trg")
-        test_base0 = MultiviewX(data_path)
-        test_set = framedataset(test_base0, train=False, transform=train_trans, grid_reduce=4, img_reduce=4)
-        test_dataset_ = ConcatDataset(test_set)
-
-        # set gmvd train as source dataset
-        print("\nTraining datasets source")
+    if args.dataset_src == "wildtrack":
+        data_path = args.data_path_src
+        if args.src_cams is not None:
+            src_cams = args.src_cams.split(",")
+            src_cams = [int(x) for x in src_cams]
+            source_base = Wildtrack(data_path, cameras=src_cams)
+        else:
+            source_base = Wildtrack(data_path)
+        train_dataset_src_ = framedataset(source_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
+        train_dataset_src = ConcatDataset(train_dataset_src_)
+        train_loader = torch.utils.data.DataLoader(train_dataset_src, batch_size=args.batch_size, shuffle=True,
+                                                num_workers=args.num_workers, pin_memory=True) 
+    elif args.dataset_src == "multiviewx":
+        data_path = args.data_path_src
+        if args.src_cams is not None:
+            src_cams = args.src_cams.split(",")
+            src_cams = [int(x) for x in src_cams]
+            source_base = MultiviewX(data_path, cameras=src_cams)
+        else:
+            source_base = MultiviewX(data_path)
+        train_dataset_src_ = framedataset(source_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
+        train_dataset_src = ConcatDataset(train_dataset_src_)
+        train_loader = torch.utils.data.DataLoader(train_dataset_src, batch_size=args.batch_size, shuffle=True,
+                                                num_workers=args.num_workers, pin_memory=True)
+    elif args.dataset_src == "gmvd":
         data_root = args.data_path_src
         train_dataset_list = []
-        print(os.path.join(data_root,args.gmvd_csv))
+        assert os.path.exists(os.path.join(data_root,args.gmvd_csv)), f"{os.path.join(data_root,args.gmvd_csv)} doesn't exist"
         f = open(os.path.join(data_root,args.gmvd_csv))
         data_path = csv.reader(f)
         for i,data_row in enumerate(data_path):
@@ -94,174 +101,53 @@ def main(args):
 
         train_loader = torch.utils.data.DataLoader(train_set_, batch_size=args.batch_size, shuffle=True,
                                                 num_workers=args.num_workers, pin_memory=True)
-        train_loader_target = torch.utils.data.DataLoader(train_dataset_trg, batch_size=args.batch_size, shuffle=True,
-                                                num_workers=args.num_workers, pin_memory=True)
-        test_loader = torch.utils.data.DataLoader(test_dataset_, batch_size=args.batch_size, shuffle=False,
-                                                num_workers=args.num_workers, pin_memory=True)
-        
-        print("images in source training set: ", len(train_loader))
-        print("images in target training set: ", len(train_loader_target))
-        print("images in target test set: ", len(test_loader))
+    else:
+        raise Exception(f"args.dataset_src = {args.dataset_src} is not allowed")
 
-    elif args.multiviewx2wildtrack:
-        # set wildtrack as trg train and test
+    if args.dataset_trg == "wildtrack":
         data_path = args.data_path_trg
-        print("\nTraining datasets trg")
-        target_base = Wildtrack(data_path)
+        if args.trg_cams is not None:
+            trg_cams = args.trg_cams.split(",")
+            trg_cams = [int(x) for x in trg_cams]
+            target_base = Wildtrack(data_path, cameras=trg_cams)
+        else:
+            target_base = Wildtrack(data_path)
         train_dataset_trg_ = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
         train_dataset_trg = ConcatDataset(train_dataset_trg_)
 
-        print("\nTest datasets trg")
         test_base0 = Wildtrack(data_path)
         test_set = framedataset(test_base0, train=False, transform=train_trans, grid_reduce=4, img_reduce=4)
         test_dataset_ = ConcatDataset(test_set)
 
-        # set multiview x as source train set
-        data_path = args.data_path_src
-        print("\nTraining datasets src")
-        source_base = MultiviewX(data_path)
-        train_dataset_src_ = framedataset(source_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
-        train_dataset_src = ConcatDataset(train_dataset_src_)
-
-        train_loader = torch.utils.data.DataLoader(train_dataset_src, batch_size=args.batch_size, shuffle=True,
-                                                num_workers=args.num_workers, pin_memory=True)
         train_loader_target = torch.utils.data.DataLoader(train_dataset_trg, batch_size=args.batch_size, shuffle=True,
                                                 num_workers=args.num_workers, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(test_dataset_, batch_size=args.batch_size, shuffle=False,
                                                 num_workers=args.num_workers, pin_memory=True)
-        
-        print("images in source training set: ", len(train_loader))
-        print("images in target training set: ", len(train_loader_target))
-        print("images in target test set: ", len(test_loader))
-
-    elif args.wildtrack2multiviewx:
-        # set multiviewx as trg train and test
+    elif args.dataset_trg == "multiviewx":
         data_path = args.data_path_trg
-        print("\nTraining datasets trg")
-        target_base = MultiviewX(data_path)
+        if args.trg_cams is not None:
+            trg_cams = args.trg_cams.split(",")
+            trg_cams = [int(x) for x in trg_cams]
+            target_base = MultiviewX(data_path, cameras=trg_cams)
+        else:
+            target_base = MultiviewX(data_path)
         train_dataset_trg_ = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
         train_dataset_trg = ConcatDataset(train_dataset_trg_)
 
-        print("\nTest datasets trg")
         test_base0 = MultiviewX(data_path)
         test_set = framedataset(test_base0, train=False, transform=train_trans, grid_reduce=4, img_reduce=4)
         test_dataset_ = ConcatDataset(test_set)
-
-        # set wildtrack as src train
-        data_path = args.data_path_src
-        print("\nTraining datasets src")
-        source_base = Wildtrack(data_path)
-        train_dataset_src_ = framedataset(source_base, train=True, transform=train_trans, grid_reduce=4, img_reduce=4)
-        train_dataset_src = ConcatDataset(train_dataset_src_)
-
-
-        train_loader = torch.utils.data.DataLoader(train_dataset_src, batch_size=args.batch_size, shuffle=True,
-                                                num_workers=args.num_workers, pin_memory=True)
         train_loader_target = torch.utils.data.DataLoader(train_dataset_trg, batch_size=args.batch_size, shuffle=True,
                                                 num_workers=args.num_workers, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(test_dataset_, batch_size=args.batch_size, shuffle=False,
                                                 num_workers=args.num_workers, pin_memory=True)
-        
-        print("images in source training set: ", len(train_loader))
-        print("images in target training set: ", len(train_loader_target))
-        print("images in target test set: ", len(test_loader))
-
-
     else:
-
-        if 'wildtrack' in args.dataset:
-            # data_path = os.path.expanduser('/data/Wildtrack')
-            data_path = args.data_path
-            if args.cam_adapt:
-                assert args.src_cams is not None and args.trg_cams is not None, "src_cams and trg_cams must be specified in cam_adapt setting"
-                trg_cams = args.trg_cams.split(",")
-                trg_cams = [int(x) for x in trg_cams]
-
-                src_cams = args.src_cams.split(",")
-                src_cams = [int(x) for x in src_cams]
-
-                source_base = Wildtrack(data_path, cameras=src_cams)
-                target_base = Wildtrack(data_path, cameras=trg_cams)
+        raise Exception(f"args.dataset_trg = {args.dataset_trg} is not allowed")
 
 
-                train_set = framedataset(source_base, train=True, transform=train_trans, grid_reduce=4)
-                train_set_target = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4)
-                test_set = framedataset(target_base, train=False, transform=train_trans, grid_reduce=4)
-
-                train_set = ConcatDataset(train_set)
-                train_set_target = ConcatDataset(train_set_target)
-                test_dataset = ConcatDataset(test_set)
-
-
-                train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
-                                                        num_workers=args.num_workers, pin_memory=True)
-                train_loader_target = torch.utils.data.DataLoader(train_set_target, batch_size=args.batch_size, shuffle=True,
-                                                        num_workers=args.num_workers, pin_memory=True)
-                test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
-                                                        num_workers=args.num_workers, pin_memory=True)
-            else:
-                base = Wildtrack(data_path)
-                test_base = base
-
-                train_set = framedataset(base, train=True, transform=train_trans, grid_reduce=4)
-                test_set = framedataset(test_base, train=False, transform=train_trans, grid_reduce=4)
-
-                train_set = ConcatDataset(train_set)
-                test_dataset = ConcatDataset(test_set)
-
-                train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
-                                                        num_workers=args.num_workers, pin_memory=True)
-                
-                test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
-                                                        num_workers=args.num_workers, pin_memory=True)
-
-        elif 'multiviewx' in args.dataset:
-            data_path = args.data_path
-            if args.cam_adapt:
-                assert args.src_cams is not None and args.trg_cams is not None, "src_cams and trg_cams must be specified in cam_adapt setting"
-                trg_cams = args.trg_cams.split(",")
-                trg_cams = [int(x) for x in trg_cams]
-
-                src_cams = args.src_cams.split(",")
-                src_cams = [int(x) for x in src_cams]
-
-                source_base = MultiviewX(data_path, cameras=src_cams)
-                target_base = MultiviewX(data_path, cameras=trg_cams)
-
-
-                train_set = framedataset(source_base, train=True, transform=train_trans, grid_reduce=4)
-                train_set_target = framedataset_trg(target_base, train=True, transform=train_trans, grid_reduce=4)
-                test_set = framedataset(target_base, train=False, transform=train_trans, grid_reduce=4)
-
-                train_set = ConcatDataset(train_set)
-                train_set_target = ConcatDataset(train_set_target)
-                test_dataset = ConcatDataset(test_set)
-
-                train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
-                                                        num_workers=args.num_workers, pin_memory=True)
-                train_loader_target = torch.utils.data.DataLoader(train_set_target, batch_size=args.batch_size, shuffle=True,
-                                                        num_workers=args.num_workers, pin_memory=True)
-                test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
-                                                        num_workers=args.num_workers, pin_memory=True)
-            else:
-                base = MultiviewX(data_path)
-                test_base = base
-
-                train_set = framedataset(base, train=True, transform=train_trans, grid_reduce=4)
-                train_dataset = ConcatDataset(train_set)
-                test_set = framedataset(test_base, train=False, transform=train_trans, grid_reduce=4)
-                test_dataset = ConcatDataset(test_set)
-
-                train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,
-                                                        num_workers=args.num_workers, pin_memory=True)
-                
-                test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
-                                                        num_workers=args.num_workers, pin_memory=True)
-
-        else:
-            raise Exception('must choose from [wildtrack, multiviewx]')
-
-
+    print("images in source training set: ", len(train_loader))
+    print("images in target training set: ", len(train_loader_target))
+    print("images in target test set: ", len(test_loader))
 
     # model
     if args.variant == 'default':
@@ -291,7 +177,7 @@ def main(args):
 
 
     # logging
-    logdir = f'logs/{args.dataset}_frame/{args.variant}/' + datetime.datetime.today().strftime('%Y-%m-%d_%H-%M-%S-%f')# if not args.resume else f'logs/{args.dataset}_frame/{args.variant}/{args.resume}'
+    logdir = f'logs/{args.dataset_src}_frame/{args.variant}/' + datetime.datetime.today().strftime('%Y-%m-%d_%H-%M-%S-%f')# if not args.resume else f'logs/{args.dataset}_frame/{args.variant}/{args.resume}'
     if args.log_dir is not None:
         logdir = os.path.join(args.log_dir, logdir)
 
@@ -371,8 +257,6 @@ def main(args):
             best_epoch = epoch
             # save model after every epoch
             torch.save(model.state_dict(), os.path.join(logdir, 'MultiviewDetector.pth'))
-            # if args.uda:
-            #     torch.save(ema_model.state_dict(), os.path.join(logdir, 'MultiviewDetector_ema.pth'))
 
         if args.test_ema:
             if moda_ema >= max_moda_ema:
@@ -454,15 +338,11 @@ if __name__ == '__main__':
     parser.add_argument("--rom3d", action="store_true")
 
     # datasets
-    parser.add_argument('-d', '--dataset', type=str, default='wildtrack', choices=['wildtrack', 'multiviewx'])
-    parser.add_argument("--data_path", type=str, default=None)
+    parser.add_argument('--dataset_src', type=str, default='wildtrack', choices=['wildtrack', 'multiviewx', 'gmvd'])
+    parser.add_argument('--dataset_trg', type=str, default='wildtrack', choices=['wildtrack', 'multiviewx'])
     parser.add_argument("--data_path_src", type=str, default=None)
     parser.add_argument("--data_path_trg", type=str, default=None)
     parser.add_argument("--gmvd_csv", type=str, default="train_datapath.csv")
-    parser.add_argument('--gmvd2multiviewx', action="store_true")
-    parser.add_argument('--multiviewx2wildtrack', action="store_true")
-    parser.add_argument('--wildtrack2multiviewx', action="store_true")
-    parser.add_argument('--cam_adapt', action="store_true")
     parser.add_argument('--src_cams', type=str, default=None)
     parser.add_argument('--trg_cams', type=str, default=None)
 

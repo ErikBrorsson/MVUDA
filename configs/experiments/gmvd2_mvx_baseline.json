@@ -1,7 +1,8 @@
 {
-    "dataset": "multiviewx",
-    "data_path_trg": "/data/MultiviewX",
+    "dataset_src": "gmvd",
+    "dataset_trg": "multiviewx",
     "data_path_src": "/data/GMVD",
+    "data_path_trg": "/data/MultiviewX",
     "train_viz": true,
     "uda": false,
     "pretrained": true,

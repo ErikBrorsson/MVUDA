@@ -1,9 +1,10 @@
 {
     "src_cams": "1,2,6",
     "trg_cams": "3,4,5",
-    "dataset": "multiviewx",
-    "data_path": "/data/MultiviewX",
-    "cam_adapt": true,
+    "dataset_src": "multiviewx",
+    "dataset_trg": "multiviewx",
+    "data_path_src": "/data/MultiviewX",
+    "data_path_trg": "/data/MultiviewX",
     "train_viz": true,
     "uda": true,
     "pretrained": true,

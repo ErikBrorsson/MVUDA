@@ -21,19 +21,11 @@ RUN apt-get update && apt-get install -y git ninja-build libglib2.0-0 libsm6 lib
 RUN conda clean --all
 
 # Install MMCV
-# ARG PYTORCH
-# ARG CUDA
-# ARG MMCV="2.0.0"
-# RUN ["/bin/bash", "-c", "pip install openmim"]
-# RUN ["/bin/bash", "-c", "mim install mmengine"]
-# RUN ["/bin/bash", "-c", "mim install mmcv==${MMCV}"]
-
 RUN pip install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.1/index.html
 
 # Install MMSegmentation
-# RUN git clone -b main https://github.com/tteepe/TrackTacular.git /tracktacular
-COPY . /tracktacular
-WORKDIR /tracktacular
+COPY . /mvuda
+WORKDIR /mvuda
 ENV FORCE_CUDA="1"
 RUN pip install -r requirements.txt
 

@@ -1,7 +1,8 @@
 {
-    "dataset": "multiviewx",
-    "data_path_trg": "/data/Wildtrack",
+    "dataset_src": "multiviewx",
+    "dataset_trg": "wildtrack",
     "data_path_src": "/data/MultiviewX",
+    "data_path_trg": "/data/Wildtrack",
     "train_viz": false,
     "uda": false,
     "pretrained": true,
