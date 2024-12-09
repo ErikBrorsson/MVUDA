@@ -47,12 +47,14 @@ Data
 ```
 
 ### Training
-In order to train the model, run the below command with the desired config (examples are provided [here](configs/experiments)):
+To train the model, run the command below with the desired config (examples are provided [here](configs/experiments)):
 
 python main.py --config "YOUR CONFIG"
 
+In our paper, we always pretrain the model on the source dataset before self-training (i.e., the model is initialized with the baseline weights).  
+To do this, first train the baseline (e.g. configs/experiments/gmvd1_mvx_baseline.json) and then do self-training (e.g. configs/experiments/gmvd1_mvx_uda.json).  
+Note that the parameter "resume_model" in the config file should point to the pretrained baseline model.  
 
-For example, configs/experiments/gmvd1_mvx_uda.json should yield similar results as presented below and reported in the paper on GMVD1->MultiviewX (89.0 MODA).
 
 ### Results (on GMVD1->MultiviewX)
 
@@ -66,7 +68,7 @@ MVUDA results:
   ![alt text](resources/videos/baseline_comparison.gif "baseline comparison") 
 
 ### Checkpoints
-Checkpoints and results on the other benchmarks are available [here](https://drive.google.com/drive/folders/1P0dgInoPV5ooDzvI4xBHOMUvTe95fgKe?usp=sharing)
+Checkpoints (baseline and MVUDA) and results on the other benchmarks are available [here](https://drive.google.com/drive/folders/1P0dgInoPV5ooDzvI4xBHOMUvTe95fgKe?usp=sharing)
 
 ## Acknowledgement
 

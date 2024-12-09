@@ -13,7 +13,7 @@
     "varying_cls_thres": true,
     "test_ema": true,
     "persp_sup": false,
-    "gmvd_csv": "scene1_config1.csv",
+    "gmvd_csv": "scene1_config2.csv",
     "resume_model": "/models/baseline_gmvd1.pth",
     "log_interval": 200,
     "lambda_weight": 1.0,

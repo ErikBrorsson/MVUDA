@@ -210,7 +210,6 @@ class GetDataset3DROM(VisionDataset):
             #     random_list, _ = generate_occlusion(self.base, 0, 639999, 25)
                 
             random_list, _ = generate_occlusion(self.base, 0, int(self.base.n_pos) - 1, 25)
-            print("Using 3DROM")
 
             bbox_by_pos_cam = self.base.bbox_by_pos_cam
 
